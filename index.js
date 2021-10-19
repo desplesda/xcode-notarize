@@ -175,55 +175,61 @@ const wait = async ({uuid, username, password, verbose}) => {
     }
 
     for (let i = 0; i < 10; i++) {
-        let xcrun = execa("xcrun", args, {reject: false});
+        try {
+            let xcrun = execa("xcrun", args, {reject: false});
 
-        if (verbose == true) {
-            xcrun.stdout.pipe(process.stdout);
-            xcrun.stderr.pipe(process.stderr);
-        }
+            if (verbose == true) {
+                xcrun.stdout.pipe(process.stdout);
+                xcrun.stderr.pipe(process.stderr);
+            }
 
-        const {exitCode, stdout, stderr} = await xcrun;
+            const {exitCode, stdout, stderr} = await xcrun;
 
-        if (exitCode === undefined) {
-            // TODO Command did not run at all
-            throw Error("Unknown failure - altool did not run at all?");
-        }
+            if (exitCode === undefined) {
+                // TODO Command did not run at all
+                throw Error("Unknown failure - altool did not run at all?");
+            }
 
-        if (exitCode !== 0) {
-            // TODO Maye print stderr - see where that ends up in the output? console.log("STDERR", stderr);
+            if (exitCode !== 0) {
+                // TODO Maye print stderr - see where that ends up in the output? console.log("STDERR", stderr);
+                const response = JSON.parse(stdout);
+                if (verbose === true) {
+                    console.log(response);
+                }
+
+                for (const productError of response["product-errors"]) {
+                    core.error(`${productError.code} - ${productError.message}`);
+                }
+                return false;
+            }
+
             const response = JSON.parse(stdout);
             if (verbose === true) {
                 console.log(response);
             }
 
-            for (const productError of response["product-errors"]) {
-                core.error(`${productError.code} - ${productError.message}`);
+            const notarizationInfo = response["notarization-info"];
+            switch (notarizationInfo["Status"]) {
+                case "in progress":
+                    core.info(`Notarization status <in progress>`);
+                    break;
+                case "invalid":
+                    core.error(`Notarization status <invalid> - ${notarizationInfo["Status Message"]}`);
+                    return false;
+                case "success":
+                    core.info(`Notarization status <success>`);
+                    return true;
+                default:
+                    core.error(`Notarization status <${notarizationInfo["Status"]}> - TODO`);
+                    return false;
             }
-            return false;
-        }
 
-        const response = JSON.parse(stdout);
-        if (verbose === true) {
-            console.log(response);
-        }
-
-        const notarizationInfo = response["notarization-info"];
-        switch (notarizationInfo["Status"]) {
-            case "in progress":
-                core.info(`Notarization status <in progress>`);
-                break;
-            case "invalid":
-                core.error(`Notarization status <invalid> - ${notarizationInfo["Status Message"]}`);
-                return false;
-            case "success":
-                core.info(`Notarization status <success>`);
-                return true;
-            default:
-                core.error(`Notarization status <${notarizationInfo["Status"]}> - TODO`);
-                return false;
-        }
-
-        await sleep(30000);
+            await sleep(30000);
+        } catch(error) {
+            console.log("error: "+error);
+            console.log("failure in checkin notarization status. this might not be fatal. retrying in 10s.");
+            await sleep(10000);
+        }    
     }
 
     core.error("Failed to get final notarization status on time.");
