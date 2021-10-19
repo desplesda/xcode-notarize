@@ -145,6 +145,8 @@ const submit = async ({productPath, archivePath, primaryBundleId, username, pass
         throw Error("Unknown failure - altool did not run at all?");
     }
 
+    console.log("exitcode = "+exitCode);
+
     if (exitCode !== 0) {
         // TODO Maybe print stderr - see where that ends up in the output? console.log("STDERR", stderr);
         const response = JSON.parse(stdout);
@@ -158,10 +160,18 @@ const submit = async ({productPath, archivePath, primaryBundleId, username, pass
         return null;
     }
 
+    console.log("upload done. stdout = ");
+    console.log(stdout);
+
     const response = JSON.parse(stdout);
+
+    console.log("response = "+response);
+
     if (verbose === true) {
         console.log(response);
     }
+
+    console.log("returning "+response["notarization-upload"]["RequestUUID"]);
 
     return response["notarization-upload"]["RequestUUID"];
 };
